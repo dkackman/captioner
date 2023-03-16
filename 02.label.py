@@ -4,23 +4,23 @@ import csv
 import torch
 
 from PIL import Image
-from transformers import AutoProcessor, BlipForConditionalGeneration, Blip2ForConditionalGeneration
+from transformers import AutoProcessor, Blip2ForConditionalGeneration
 
 
 source_dir = '/mnt/data/photos/prepared/'
 csv_file_path = '/mnt/data/photos/labels.csv'
+model_name = "Salesforce/blip2-flan-t5-xl"
 
+print("Loading model..")
 # Check if a GPU is available and set the device accordingly
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# model = BlipForConditionalGeneration.from_pretrained(
-#     "Salesforce/blip-image-captioning-large", torch_dtype=torch.float16)
 model = Blip2ForConditionalGeneration.from_pretrained(
-    "Salesforce/blip2-opt-2.7b", torch_dtype=torch.float16)
+    model_name, torch_dtype=torch.float16)
 model.to(device)
 
 processor = AutoProcessor.from_pretrained(
-    "Salesforce/blip2-opt-2.7b")
+    model_name)
 
 
 def get_image_labels(file_path):
@@ -31,9 +31,6 @@ def get_image_labels(file_path):
             device, torch.float16)
 
         generated_ids = model.generate(**inputs, max_new_tokens=20)
-        # out = model.generate(**inputs)
-        # caption = processor.decode(out[0], skip_special_tokens=True)
-        # return caption
 
         generated_text = processor.batch_decode(
             generated_ids, skip_special_tokens=True)[0].strip()
