@@ -1,43 +1,68 @@
 import os
 import torch
-import torchvision.models as models
+import csv
+import torch
 
-# Load the pre-trained ResNet-50 model
-resnet50 = models.resnet50(pretrained=True)
-resnet50.eval()
-
-# If you have a GPU, move the model to the GPU for faster processing
-if torch.cuda.is_available():
-    resnet50 = resnet50.cuda()
+from PIL import Image
+from transformers import AutoProcessor, BlipForConditionalGeneration, Blip2ForConditionalGeneration
 
 
-def predict_label(input_tensor):
-    input_batch = input_tensor.unsqueeze(0)
+source_dir = '/mnt/data/photos/prepared/'
+csv_file_path = '/mnt/data/photos/labels.csv'
 
-    # Move the input data to the GPU if available
-    if torch.cuda.is_available():
-        input_batch = input_batch.cuda()
+# Check if a GPU is available and set the device accordingly
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    # Predict the class probabilities
-    with torch.no_grad():
-        output = resnet50(input_batch)
+# model = BlipForConditionalGeneration.from_pretrained(
+#     "Salesforce/blip-image-captioning-large", torch_dtype=torch.float16)
+model = Blip2ForConditionalGeneration.from_pretrained(
+    "Salesforce/blip2-opt-2.7b", torch_dtype=torch.float16)
+model.to(device)
 
-    # Get the predicted class index
-    _, predicted_class_idx = torch.max(output, 1)
-
-    # Convert the class index to the corresponding label
-    label = str(predicted_class_idx.item())
-    return label
+processor = AutoProcessor.from_pretrained(
+    "Salesforce/blip2-opt-2.7b")
 
 
-# Set the path to the directory with your preprocessed family photos
-photos_directory = '/mnt/data/photos/prepared/'
+def get_image_labels(file_path):
+    try:
+        image = Image.open(file_path)
 
-# Iterate through your preprocessed family photos and predict their labels
-for root, _, files in os.walk(photos_directory):
-    for file in files:
-        if file.lower().endswith(('.jpg', '.jpeg', '.png')):
-            file_path = os.path.join(root, file)
-            input_tensor = torch.load(file_path)
-            label = predict_label(input_tensor)
-            print(f"Predicted label for {file}: {label}")
+        inputs = processor(images=image, return_tensors="pt").to(
+            device, torch.float16)
+
+        generated_ids = model.generate(**inputs, max_new_tokens=20)
+        # out = model.generate(**inputs)
+        # caption = processor.decode(out[0], skip_special_tokens=True)
+        # return caption
+
+        generated_text = processor.batch_decode(
+            generated_ids, skip_special_tokens=True)[0].strip()
+        return generated_text
+
+    except Exception:
+        return None
+
+
+# Calculate the total number of files to be processed
+file_paths = [os.path.join(source_dir, f) for f in os.listdir(
+    source_dir) if f.lower().endswith('.jpg')]
+total_files = len(file_paths)
+file_counter = 0
+processed_counter = 0
+
+# Process the files sequentially and store the results in a CSV file
+with open(csv_file_path, 'w', newline='') as csvfile:
+    csv_writer = csv.writer(csvfile)
+    csv_writer.writerow(['file_path', 'caption'])
+
+    for file_path in file_paths:
+        file_counter += 1
+        top_label_name = get_image_labels(file_path)
+
+        if top_label_name is not None:
+            processed_counter += 1
+            csv_writer.writerow([file_path, top_label_name])
+        print(
+            f"Processed {processed_counter} of {total_files} files", end='\r')
+
+print(f"\nTotal files processed: {processed_counter}")
