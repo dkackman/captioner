@@ -1,41 +1,31 @@
 import os
 import torch
 import csv
-import torch
-
 from PIL import Image
 from transformers import AutoProcessor, Blip2ForConditionalGeneration
 
-
 source_dir = '/mnt/data/photos/prepared/'
 csv_file_path = '/mnt/data/photos/labels.csv'
-model_name = "Salesforce/blip2-flan-t5-xl"
 
-print("Loading model..")
-# Check if a GPU is available and set the device accordingly
+model_name = "Salesforce/blip2-flan-t5-xxl"
+
+# Load the model and processor
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 model = Blip2ForConditionalGeneration.from_pretrained(
-    model_name, torch_dtype=torch.float16)
-model.to(device)
-
-processor = AutoProcessor.from_pretrained(
-    model_name)
+    model_name, device_map="auto", load_in_8bit=True)  # .to(device)
+processor = AutoProcessor.from_pretrained(model_name)
 
 
-def get_image_labels(file_path):
+def get_image_labels(file_paths):
     try:
-        image = Image.open(file_path)
-
-        inputs = processor(images=image, return_tensors="pt").to(
+        images = [Image.open(file_path) for file_path in file_paths]
+        inputs = processor(images=images, return_tensors="pt").to(
             device, torch.float16)
-
         generated_ids = model.generate(**inputs, max_new_tokens=20)
-
-        generated_text = processor.batch_decode(
-            generated_ids, skip_special_tokens=True)[0].strip()
-        return generated_text
-
+        generated_texts = processor.batch_decode(
+            generated_ids, skip_special_tokens=True)
+        return [text.strip() for text in generated_texts]
     except Exception:
         return None
 
@@ -47,18 +37,20 @@ total_files = len(file_paths)
 file_counter = 0
 processed_counter = 0
 
-# Process the files sequentially and store the results in a CSV file
+# Process the files in pairs and store the results in a CSV file
 with open(csv_file_path, 'w', newline='') as csvfile:
     csv_writer = csv.writer(csvfile)
-    csv_writer.writerow(['file_path', 'caption'])
+    csv_writer.writerow(['file_path', 'label_name'])
 
-    for file_path in file_paths:
-        file_counter += 1
-        top_label_name = get_image_labels(file_path)
+    batch_size = 32
+    for i in range(0, total_files, batch_size):
+        batch_file_paths = file_paths[i:i + batch_size]
+        label_names = get_image_labels(batch_file_paths)
 
-        if top_label_name is not None:
-            processed_counter += 1
-            csv_writer.writerow([file_path, top_label_name])
+        if label_names is not None:
+            for file_path, label_name in zip(batch_file_paths, label_names):
+                processed_counter += 1
+                csv_writer.writerow([file_path, label_name])
         print(
             f"Processed {processed_counter} of {total_files} files", end='\r')
 
