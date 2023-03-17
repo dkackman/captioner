@@ -1,6 +1,5 @@
 import os
-import uuid
-import shutil
+import hashlib
 from PIL import Image
 from concurrent.futures import ThreadPoolExecutor
 
@@ -14,12 +13,22 @@ def process_image(file_path):
             # Check file size (width * height * 3 for RGB) and ignore files smaller than 400 KB
             if img.size[0] * img.size[1] * 3 >= 400 * 1024:
                 img = img.convert('RGB')
+
+                # Calculate the file hash
+                file_hash = hashlib.md5(img.tobytes()).hexdigest()
+
+                # Create the destination file path using the hash
                 destination_file = os.path.join(
-                    destination_dir, f"{uuid.uuid4()}.jpg")
-                img.save(destination_file)
-                return 'processed'
-            else:
-                return 'ignored'
+                    destination_dir, f"{file_hash}.jpg")
+
+                # Check if the file already exists in the destination directory
+                if not os.path.exists(destination_file):
+                    img.save(destination_file)
+                    return 'processed'
+
+                return 'duplicate'
+
+            return 'ignored'
     except Exception:
         return 'corrupt'
 
@@ -40,6 +49,7 @@ file_counter = 0
 processed_counter = 0
 ignored_counter = 0
 corrupt_counter = 0
+duplicate_counter = 0
 
 # Process the files using ThreadPoolExecutor
 with ThreadPoolExecutor() as executor:
@@ -53,9 +63,12 @@ with ThreadPoolExecutor() as executor:
             ignored_counter += 1
         elif result == 'corrupt':
             corrupt_counter += 1
+        elif result == 'duplicate':
+            duplicate_counter += 1
         print(
             f"Processed {processed_counter} of {total_files} files", end='\r')
 
 print(f"\nTotal files processed: {processed_counter}")
 print(f"Total files ignored: {ignored_counter}")
 print(f"Total files corrupt: {corrupt_counter}")
+print(f"Total files duplicate: {duplicate_counter}")
