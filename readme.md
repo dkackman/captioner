@@ -4,7 +4,7 @@ An experiment in using AI to manage and manipulate family photos.
 
 Goals
 
-- Generically tag an entire director strucutre  of photos (a man and woman pose in front of a chirstmas tree)
+- Generically tag an entire directory strucutre of photos (a man and woman pose in front of a chirstmas tree) (done)
 - Train a model to recognize family members and pets
 - Specifically caption an entire directory strucutre of photos (Don and Daisy pose in front of a chirstmas tree)
 - Make an image search and organizer tool on top of that
