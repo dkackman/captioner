@@ -23,7 +23,7 @@ sh install.sh
 
 ### `01.prepare.py`
 
-Copies image files form a known location, converting them all to jpg and filtering our thumbnails (by file size) and corrupt files). It also flatten any directroy structure and just gives every file a uuid name. (optional)
+Copies image files from a known location, converting them all to jpg and filtering our thumbnails (by file size) and corrupt files. It also flatten any directroy structure and just gives every file a uuid name. (optional)
 
 ### `02.label.py`
 
